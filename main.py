@@ -7,12 +7,8 @@ import csv
 import datetime
 import logging
 
-# TODO: annotations for return types
-
 session = boto3.session.Session(profile_name="pathstream")
 aws_s3_client = session.client("s3")
-
-print(aws_s3_client)
 
 headers = {
     "Authorization": os.environ.get("AIRTABLE_BEARER_KEY"),
@@ -27,17 +23,18 @@ def retrieve_records_from(
     Given a valid Airtable Base URL (`airtable_base_url`), retrieve it's data.
 
     :param airtable_base_url -> ``str``:  a valid Airtable Base URL.
-    :returns -> List[Dict[str, int or float or str]]: a list of rows from the airtable base
+    :param headers -> ``Dict[str, int or float or str]``: the headers to use for the request.
+    :returns -> List[Dict[str, int or float or str]]: a list of rows retrieved from the airtable base.
     """
     response = requests.get(airtable_base_url, headers=headers)
 
     response.raise_for_status()
 
-    rows = response.json()["records"]
+    rows = response.json()["records"]  # first 100 rows
 
     offset = response.json().get("offset", None)
 
-    while offset:
+    while offset:  # retrieve all rows
         print(offset)
         response = requests.get(
             airtable_base_url + f"&offset={offset}", headers=headers
@@ -51,7 +48,7 @@ def retrieve_records_from(
 
 def get_columns_from(airtable_data: List[Dict[str, int or float or str]]) -> Set[str]:
     """
-    Given a list of dictionary objects, build a list of headers
+    Given a list of dictionaries representing each row in the base (`airtable_data`), build a list of all column names.
 
     :param airtable_data -> ``List[Dict[str, int or float or str]]``: data returned from airtable
     :returns -> ``Set[str]``: a set containing all column names from the airtable base.
@@ -62,7 +59,9 @@ def get_columns_from(airtable_data: List[Dict[str, int or float or str]]) -> Set
         fields_in_view = set(row["fields"].keys())
 
         # add columns not in `csv_headers` to `csv_headers`
-        columns_not_in_csv_headers = csv_headers.symmetric_difference(fields_in_view)
+        columns_not_in_csv_headers = csv_headers.symmetric_difference(
+            fields_in_view
+        )  # get names not in both `csv_headers` and `fields_in_view`
         csv_headers.update(columns_not_in_csv_headers)
 
     return csv_headers
@@ -72,7 +71,7 @@ def create_csv_from(
     column_names: Set[str], rows: List[Dict[str, int or float or str]], f_name: str
 ) -> str:
     """
-    Create CSV from the provided column names `column_names` and rows (`rows`).
+    Create CSV from the provided column names (`column_names`) and rows (`rows`).
     Save the CSV with the provided file name (`f_name`).
 
     :param column_names -> `Set[str]`: column names for the CSV.
@@ -89,9 +88,9 @@ def create_csv_from(
     return f"Wrote {len(rows)} rows to CSV."
 
 
-def download(tab_name: str) -> None:
+def download_to_csv(tab_name: str) -> None:
     """
-    download airtable data -> CSV from the provided base name (`base_name`).
+    download airtable data from the provided base name (`tab_name`) and save it as a CSV.
 
     :param tab_name -> ``str``: the name of the Airtable Base
     """
@@ -103,7 +102,10 @@ def download(tab_name: str) -> None:
 
     columns_for_csv = get_columns_from(view_data)
 
-    print(create_csv_from(columns_for_csv, view_data, "course_section_enrollments.csv"))
+    print(
+        create_csv_from(columns_for_csv, view_data, "course_section_enrollments.csv"),
+        flush=True,
+    )
 
 
 def upload_to_s3(s3_client: botocore.client, f_path: str, tab_name: str):
@@ -132,8 +134,10 @@ def upload_to_s3(s3_client: botocore.client, f_path: str, tab_name: str):
 
 
 if __name__ == "__main__":
-    download("Certificate Purchases")  # Download Certificate Purchases Tab
-    download("Course Section Enrollments")  # Download Course Section Enrollments Tab
+    download_to_csv("Certificate Purchases")  # Download Certificate Purchases Tab
+    download_to_csv(
+        "Course Section Enrollments"
+    )  # Download Course Section Enrollments Tab
 
     upload_to_s3(
         aws_s3_client, "certificate_purchases.csv", "Certificate Purchases"
