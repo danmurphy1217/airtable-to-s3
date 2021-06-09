@@ -46,6 +46,49 @@ def retrieve_records_from(
     return rows
 
 
+product_skus_base = retrieve_records_from(
+    f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Product%20SKUs?view=Grid%20view",
+    headers,
+)
+course_section_enrollments_base = retrieve_records_from(
+    f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Course%20Section%20Enrollments?view=Grid%20view",
+    headers,
+)
+students_base = retrieve_records_from(
+    f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Students?view=Grid%20view",
+    headers,
+)
+certificates_base = retrieve_records_from(
+    f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Certificates?view=Grid%20view",
+    headers,
+)
+deferrals_base = retrieve_records_from(
+    f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Deferrals?view=Grid%20view",
+    headers,
+)
+#
+certificate_purchases_base = retrieve_records_from(
+    f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Certificate%20Purchases?view=Grid%20view",
+    headers,
+)
+course_sections_base = retrieve_records_from(
+    f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Course%20Sections?view=Grid%20view",
+    headers,
+)
+final_grades_base = retrieve_records_from(
+    f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Final%20Grades?view=Grid%20view",
+    headers,
+)
+instructors_base = retrieve_records_from(
+    f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Instructors?view=Grid%20view",
+    headers,
+)
+course_sections_testing_base = retrieve_records_from(
+    f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/%28DoNotUse%29%20Course%20Sections%20Testing?view=Grid%20view",
+    headers,
+)
+
+
 def get_columns_from(airtable_data: List[Dict[str, int or float or str]]) -> Set[str]:
     """
     Given a list of dictionaries representing each row in the base (`airtable_data`), build a list of all column names.
@@ -65,6 +108,141 @@ def get_columns_from(airtable_data: List[Dict[str, int or float or str]]) -> Set
         csv_headers.update(columns_not_in_csv_headers)
 
     return csv_headers
+
+
+def retrieve_value_for(reference_base: str, reference_column: str, row_ids: List[str]):
+    """
+    Given a reference base (`reference_base`) and a list of reference id(s) (`row_ids`),
+
+    :param reference_base -> ``str``: the base that a field is referencing.
+    :param reference_column -> ``str``: the column to retrieve from the referenced base.
+    :param row_ids -> ``List[str]``: the row IDs to retrieve data for.
+
+    :returns -> ``Dict[str, str]``: a dictionary containing row id - converted value (key - value) pairs.
+    """
+    result = list()
+
+    for row in reference_base:
+        if row["id"] in row_ids:
+            result.append(str(row["fields"].get(reference_column, None)))
+
+    return ", ".join(result)
+
+
+def clean_data(
+    airtable_data: List[Dict[str, int or float or str]],
+    column_names: Set[str],
+    tab_name: str,
+) -> List[Dict[str, int or float or str]]:
+    """
+    Take in messy airtable data (`airtable_data`), clean it (convert lists to strings, replace reference IDs with
+    actual values), and return the cleaned version.
+
+    :param airtable_data -> ``List[Dict[str, int or float or str]]``: data returned from airtable
+    :param column_names -> ``Set[str]`` a set containing all column names for the data.
+    :param tab_name -> ``str``: the name of the tab
+
+    :returns ``List[Dict[str, int or float or str]]``: cleaned airtable data.
+    """
+    cleaned_data = []
+
+    columns_for_lookup = (
+        ["Product SKU", "Section Enrollment List", "Email", "Cert ID", "Deferrals"]
+        if tab_name == "Certificate Purchases"
+        else [
+            "Cert Purchase #",
+            "Email",
+            "Course Section Final Name",
+            "Brightspace Name - Email - Link",  # FIX
+            "Certificate Purchases List (from Email)",
+            "Certificate ID",
+            "Instructor Email",
+            "Course Sections copy",
+        ]
+    )
+
+    for row in airtable_data:
+        cleaned_row = dict()
+        cleaned_row["fields"] = dict()
+
+        for column in column_names:
+            if row["fields"].get(column, None):
+
+                if isinstance(row["fields"][column], list):
+
+                    value = row["fields"][column]
+
+                    if row["fields"][column][0] is None:
+                        value = ["None"]
+
+                    elif isinstance(row["fields"][column][0], (int, float)):
+                        value = [str(value) for value in row["fields"][column]]
+
+                    cleaned_row["fields"][column] = ", ".join(value)
+
+                if column in columns_for_lookup:
+                    reference_base = ""
+                    reference_column = ""
+                    if tab_name == "Certificate Purchases":
+                        if column == "Product SKU":
+                            reference_base = product_skus_base
+                            reference_column = column
+                        elif column == "Section Enrollment List":
+                            reference_base = course_section_enrollments_base
+                            reference_column = "Enrollment ID"
+                        elif column == "Email":
+                            reference_base = students_base
+                            reference_column = column
+                        elif column == "Deferrals":
+                            reference_base = deferrals_base
+                            reference_column = "ID"
+                        elif column == "Cert ID":
+                            reference_base = certificates_base
+                            reference_column = "Certificate ID"
+                        else:
+                            raise ValueError(
+                                f"Column {column} not currently supported."
+                            )
+
+                    elif tab_name == "Course Section Enrollments":
+                        if column == "Cert Purchase #":
+                            reference_base = certificate_purchases_base
+                            reference_column = column
+                        elif column == "Email":
+                            reference_base = students_base
+                            reference_column = column
+                        elif column == "Course Section Final Name":
+                            reference_base = course_sections_base
+                            reference_column = column
+                        elif column == "Certificate ID":
+                            reference_base = certificates_base
+                            reference_column = "Certificate ID"
+                        elif column == "Brightspace Name - Email - Link":
+                            print("FOUND IT")
+                            reference_base = course_section_enrollments_base
+                            reference_column = "Brightspace Name - Email - Link"
+                        elif column == "Certificate Purchases List (from Email)":
+                            reference_base = product_skus_base
+                            reference_column = "Product SKU"
+                        elif column == "Instructor Email":
+                            reference_base = instructors_base
+                            reference_column = "Email"
+                        elif column == "Course Sections copy":
+                            reference_base = course_sections_testing_base
+                            reference_column = "Course Section Final Name"
+                        else:
+                            raise ValueError(
+                                f"Column {column} not currently supported."
+                            )
+
+                        cleaned_row["fields"][column] = retrieve_value_for(
+                            reference_base, reference_column, value
+                        )
+
+        cleaned_data.append(cleaned_row)
+
+    assert len(cleaned_data) == len(airtable_data), "Length Mismatch"
+    return cleaned_data
 
 
 def create_csv_from(
@@ -101,9 +279,13 @@ def download_to_csv(tab_name: str) -> None:
     )
 
     columns_for_csv = get_columns_from(view_data)
+    print(columns_for_csv)
+    cleaned_data = clean_data(view_data, columns_for_csv, tab_name)
 
     print(
-        create_csv_from(columns_for_csv, view_data, "course_section_enrollments.csv"),
+        create_csv_from(
+            columns_for_csv, cleaned_data, f"{'_'.join(tab_name.split(' '))}.csv"
+        ),
         flush=True,
     )
 
@@ -135,13 +317,14 @@ def upload_to_s3(s3_client: botocore.client, f_path: str, tab_name: str):
 
 if __name__ == "__main__":
     download_to_csv("Certificate Purchases")  # Download Certificate Purchases Tab
+
     download_to_csv(
         "Course Section Enrollments"
     )  # Download Course Section Enrollments Tab
 
-    upload_to_s3(
-        aws_s3_client, "certificate_purchases.csv", "Certificate Purchases"
-    )  # Upload `certificate_purchases.csv` to S3
-    upload_to_s3(
-        aws_s3_client, "course_section_enrollments.csv", "Course Section Enrollments"
-    )  # Upload `course_section_enrollments.csv` to S3
+    # upload_to_s3(
+    #     aws_s3_client, "certificate_purchases.csv", "Certificate Purchases"
+    # )  # Upload `certificate_purchases.csv` to S3
+    # upload_to_s3(
+    #     aws_s3_client, "course_section_enrollments.csv", "Course Section Enrollments"
+    # )  # Upload `course_section_enrollments.csv` to S3
