@@ -158,10 +158,14 @@ def clean_data(
             "Certificate ID",
             "Instructor Email",
             "Course Sections copy",
+            "Deferrals",
+            "Deferrals 2",
+
         ]
     )
 
     for row in airtable_data:
+        print(row)
         cleaned_row = dict()
         cleaned_row["fields"] = dict()
 
@@ -204,6 +208,10 @@ def clean_data(
                                 f"Column {column} not currently supported."
                             )
 
+                        cleaned_row["fields"][column] = retrieve_value_for(
+                            reference_base, reference_column, value
+                        )
+
                     elif tab_name == "Course Section Enrollments":
                         if column == "Cert Purchase #":
                             reference_base = certificate_purchases_base
@@ -218,7 +226,6 @@ def clean_data(
                             reference_base = certificates_base
                             reference_column = "Certificate ID"
                         elif column == "Brightspace Name - Email - Link":
-                            print("FOUND IT")
                             reference_base = course_section_enrollments_base
                             reference_column = "Brightspace Name - Email - Link"
                         elif column == "Certificate Purchases List (from Email)":
@@ -230,6 +237,12 @@ def clean_data(
                         elif column == "Course Sections copy":
                             reference_base = course_sections_testing_base
                             reference_column = "Course Section Final Name"
+                        elif column == "Deferrals":
+                            reference_base = deferrals_base
+                            reference_column = "ID"
+                        elif column == "Deferrals 2":
+                            reference_base = deferrals_base
+                            reference_column = "ID"
                         else:
                             raise ValueError(
                                 f"Column {column} not currently supported."
@@ -279,7 +292,6 @@ def download_to_csv(tab_name: str) -> None:
     )
 
     columns_for_csv = get_columns_from(view_data)
-    print(columns_for_csv)
     cleaned_data = clean_data(view_data, columns_for_csv, tab_name)
 
     print(
