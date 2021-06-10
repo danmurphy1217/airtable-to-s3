@@ -46,49 +46,6 @@ def retrieve_records_from(
     return rows
 
 
-product_skus_base = retrieve_records_from(
-    f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Product%20SKUs?view=Grid%20view",
-    headers,
-)
-course_section_enrollments_base = retrieve_records_from(
-    f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Course%20Section%20Enrollments?view=Grid%20view",
-    headers,
-)
-students_base = retrieve_records_from(
-    f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Students?view=Grid%20view",
-    headers,
-)
-certificates_base = retrieve_records_from(
-    f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Certificates?view=Grid%20view",
-    headers,
-)
-deferrals_base = retrieve_records_from(
-    f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Deferrals?view=Grid%20view",
-    headers,
-)
-#
-certificate_purchases_base = retrieve_records_from(
-    f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Certificate%20Purchases?view=Grid%20view",
-    headers,
-)
-course_sections_base = retrieve_records_from(
-    f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Course%20Sections?view=Grid%20view",
-    headers,
-)
-final_grades_base = retrieve_records_from(
-    f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Final%20Grades?view=Grid%20view",
-    headers,
-)
-instructors_base = retrieve_records_from(
-    f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Instructors?view=Grid%20view",
-    headers,
-)
-course_sections_testing_base = retrieve_records_from(
-    f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/%28DoNotUse%29%20Course%20Sections%20Testing?view=Grid%20view",
-    headers,
-)
-
-
 def get_columns_from(airtable_data: List[Dict[str, int or float or str]]) -> Set[str]:
     """
     Given a list of dictionaries representing each row in the base (`airtable_data`), build a list of all column names.
@@ -106,6 +63,11 @@ def get_columns_from(airtable_data: List[Dict[str, int or float or str]]) -> Set
             fields_in_view
         )  # get names not in both `csv_headers` and `fields_in_view`
         csv_headers.update(columns_not_in_csv_headers)
+    
+    try:
+        csv_headers.remove("Calculation")
+    except KeyError:
+        pass
 
     return csv_headers
 
@@ -122,9 +84,15 @@ def retrieve_value_for(reference_base: str, reference_column: str, row_ids: List
     """
     result = list()
 
+    print(reference_base[0])
+
     for row in reference_base:
+
         if row["id"] in row_ids:
-            result.append(str(row["fields"].get(reference_column, None)))
+            if reference_column == "Product SKU":
+                print("Row in reference: ", row)
+                print(row["fields"].get(reference_column))
+            result.append(str(row["fields"].get(reference_column, "NaN")))
 
     return ", ".join(result)
 
@@ -160,15 +128,60 @@ def clean_data(
             "Course Sections copy",
             "Deferrals",
             "Deferrals 2",
-
         ]
     )
 
+    product_skus_base = retrieve_records_from(
+        f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Product%20SKUs?view=Grid%20view",
+        headers,
+    )
+
+    all_skus =[{row['id']: row['fields']['Product SKU']} for row in product_skus_base]
+
+    course_section_enrollments_base = retrieve_records_from(
+        f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Course%20Section%20Enrollments?view=Grid%20view",
+        headers,
+    )
+    students_base = retrieve_records_from(
+        f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Students?view=Grid%20view",
+        headers,
+    )
+    certificates_base = retrieve_records_from(
+        f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Certificates?view=Grid%20view",
+        headers,
+    )
+    deferrals_base = retrieve_records_from(
+        f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Deferrals?view=Grid%20view",
+        headers,
+    )
+    #
+    certificate_purchases_base = retrieve_records_from(
+        f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Certificate%20Purchases?view=Grid%20view",
+        headers,
+    )
+    course_sections_base = retrieve_records_from(
+        f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Course%20Sections?view=Grid%20view",
+        headers,
+    )
+    final_grades_base = retrieve_records_from(
+        f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Final%20Grades?view=Grid%20view",
+        headers,
+    )
+    instructors_base = retrieve_records_from(
+        f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Instructors?view=Grid%20view",
+        headers,
+    )
+    course_sections_testing_base = retrieve_records_from(
+        f"https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/%28DoNotUse%29%20Course%20Sections%20Testing?view=Grid%20view",
+        headers,
+    )
+
+    # iterate over each row
     for row in airtable_data:
-        print(row)
         cleaned_row = dict()
         cleaned_row["fields"] = dict()
 
+        # iterate over each column
         for column in column_names:
             if row["fields"].get(column, None):
 
@@ -177,20 +190,24 @@ def clean_data(
                     value = row["fields"][column]
 
                     if row["fields"][column][0] is None:
-                        value = ["None"]
+                        value = ["NaN"]
 
                     elif isinstance(row["fields"][column][0], (int, float)):
                         value = [str(value) for value in row["fields"][column]]
+                
+                else:
+                    print("NOT A LIST: ", row["fields"][column])
+                    value = list()
+                    value.append(str(row["fields"][column]))
 
-                    cleaned_row["fields"][column] = ", ".join(value)
 
                 if column in columns_for_lookup:
-                    reference_base = ""
-                    reference_column = ""
+
                     if tab_name == "Certificate Purchases":
                         if column == "Product SKU":
                             reference_base = product_skus_base
-                            reference_column = column
+                            reference_column = "Product SKU"
+                            print("PRODUCT SKU REF COL: ", column)
                         elif column == "Section Enrollment List":
                             reference_base = course_section_enrollments_base
                             reference_column = "Enrollment ID"
@@ -226,7 +243,7 @@ def clean_data(
                             reference_base = certificates_base
                             reference_column = "Certificate ID"
                         elif column == "Brightspace Name - Email - Link":
-                            reference_base = course_section_enrollments_base
+                            reference_base = final_grades_base
                             reference_column = "Brightspace Name - Email - Link"
                         elif column == "Certificate Purchases List (from Email)":
                             reference_base = product_skus_base
@@ -251,6 +268,12 @@ def clean_data(
                         cleaned_row["fields"][column] = retrieve_value_for(
                             reference_base, reference_column, value
                         )
+                else:
+                    # column does not need to be converted, set equal to the following
+                    cleaned_row["fields"][column] = ", ".join(value)
+            else:
+
+                print("NOT EXISTENT IN ROW: ", column)
 
         cleaned_data.append(cleaned_row)
 
@@ -340,3 +363,6 @@ if __name__ == "__main__":
     # upload_to_s3(
     #     aws_s3_client, "course_section_enrollments.csv", "Course Section Enrollments"
     # )  # Upload `course_section_enrollments.csv` to S3
+
+
+# print(requests.get("https://api.airtable.com/v0/appBRLEUdTlfhgkUZ/Product%20SKUs/recTCAA3Mcoilz55D", headers=headers).json()['fields']['Product SKU'])
